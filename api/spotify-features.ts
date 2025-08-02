@@ -1,30 +1,83 @@
 export const config = { runtime: 'edge' }
 
-import { getSpotifyToken } from './spotify-token'
-
 export default async function handler(req: Request) {
   const { searchParams } = new URL(req.url)
   const trackId = searchParams.get('id')
 
   if (!trackId) {
-    return new Response('Missing track ID', { status: 400 })
+    return new Response(JSON.stringify({ error: 'Missing track ID' }), { 
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 
   try {
-    // Get access token using shared token service
-    const access_token = await getSpotifyToken()
+    // Check if credentials exist
+    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+      console.error('Missing Spotify credentials for audio features')
+      return new Response(JSON.stringify({ 
+        error: 'Missing Spotify credentials',
+        timestamp: new Date().toISOString()
+      }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    console.log(`Getting audio features for track: ${trackId}`)
+
+    // Get client credentials token
+    const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`)}`
+      },
+      body: 'grant_type=client_credentials'
+    })
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error('Token request failed for audio features:', tokenResponse.status, tokenResponse.statusText, errorText)
+      return new Response(JSON.stringify({ 
+        error: 'Spotify authentication failed',
+        details: `${tokenResponse.status} ${tokenResponse.statusText}`,
+        timestamp: new Date().toISOString()
+      }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    const tokenData = await tokenResponse.json() as { access_token: string }
+    const { access_token } = tokenData
+
+    console.log('Token obtained successfully for audio features')
 
     // Get audio features
+    console.log(`Fetching audio features from: https://api.spotify.com/v1/audio-features/${trackId}`)
     const response = await fetch(`https://api.spotify.com/v1/audio-features/${trackId}`, {
       headers: { 'Authorization': `Bearer ${access_token}` }
     })
 
+    console.log(`Audio features response status: ${response.status}`)
+
     if (!response.ok) {
-      console.error('Audio features request failed:', response.status, response.statusText)
-      return new Response('Failed to get audio features', { status: 500 })
+      const errorText = await response.text()
+      console.error('Audio features request failed:', response.status, response.statusText, errorText)
+      return new Response(JSON.stringify({ 
+        error: 'Failed to get audio features',
+        details: `${response.status} ${response.statusText}`,
+        trackId: trackId,
+        timestamp: new Date().toISOString()
+      }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     const features = await response.json()
+    console.log('Audio features retrieved successfully')
 
     return new Response(JSON.stringify(features), {
       headers: {

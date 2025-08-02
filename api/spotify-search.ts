@@ -1,7 +1,5 @@
 export const config = { runtime: 'edge' }
 
-import { getSpotifyToken } from './spotify-token'
-
 export default async function handler(req: Request) {
   const { searchParams } = new URL(req.url)
   const query = searchParams.get('q')
@@ -13,8 +11,29 @@ export default async function handler(req: Request) {
   }
 
   try {
-    // Get access token using shared token service
-    const access_token = await getSpotifyToken()
+    // Check if credentials exist
+    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+      console.error('Missing Spotify credentials')
+      return new Response('Missing Spotify credentials', { status: 500 })
+    }
+
+    // Get client credentials token
+    const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`)}`
+      },
+      body: 'grant_type=client_credentials'
+    })
+
+    if (!tokenResponse.ok) {
+      console.error('Token request failed:', tokenResponse.status, tokenResponse.statusText)
+      return new Response('Spotify authentication failed', { status: 500 })
+    }
+
+    const tokenData = await tokenResponse.json() as { access_token: string }
+    const { access_token } = tokenData
 
     // Search tracks or get specific track
     const endpoint = trackId 
