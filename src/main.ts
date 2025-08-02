@@ -52,7 +52,6 @@ const canvas = document.querySelector<HTMLCanvasElement>('#visualizer')!
 const visualizer = new EnergyVisualizer(canvas)
 const spotifyAPI = new SpotifyAPI()
 
-let currentTrack: SpotifyTrack | null = null
 let currentFeatures: AudioFeatures | null = null
 let animationSpeed = 1
 let autoAnimateInterval: number | null = null
@@ -124,7 +123,6 @@ function escapeHtml(text: string): string {
 }
 
 async function selectTrack(track: SpotifyTrack) {
-  currentTrack = track
 
   const currentImageUrl = track.album.images && track.album.images.length > 0 
     ? track.album.images[0]?.url || track.album.images[track.album.images.length - 1]?.url || ''

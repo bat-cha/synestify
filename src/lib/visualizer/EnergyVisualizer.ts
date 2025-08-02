@@ -19,6 +19,7 @@ export class EnergyVisualizer {
   private animationId: number | null = null
   private lastFeatures: AudioFeatures | null = null
   private pulseTime = 0
+  private animationSpeed = 1
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -50,7 +51,7 @@ export class EnergyVisualizer {
     const animate = () => {
       if (this.lastFeatures) {
         this.draw(this.lastFeatures)
-        this.pulseTime += 0.02
+        this.pulseTime += 0.02 * this.animationSpeed
       }
       this.animationId = requestAnimationFrame(animate)
     }
@@ -138,6 +139,10 @@ export class EnergyVisualizer {
 
   resize(): void {
     this.setupCanvas()
+  }
+
+  setAnimationSpeed(speed: number): void {
+    this.animationSpeed = speed
   }
 
   private clamp(value: number, min: number, max: number): number {

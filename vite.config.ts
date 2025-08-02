@@ -18,8 +18,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'spotify': ['src/lib/spotify/api.ts', 'src/lib/spotify/auth.ts'],
-          'visualizer': ['src/lib/visualizer/canvas.ts', 'src/lib/visualizer/webgl.ts']
+          'spotify': ['src/lib/spotify/api.ts'],
+          'visualizer': ['src/lib/visualizer/EnergyVisualizer.ts']
         }
       }
     }
