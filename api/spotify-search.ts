@@ -53,6 +53,14 @@ export default async function handler(req: Request) {
       }
     })
   } catch (error) {
-    return new Response('Internal server error', { status: 500 })
+    console.error('Spotify search error:', error)
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }

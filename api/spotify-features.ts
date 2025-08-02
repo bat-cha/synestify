@@ -9,6 +9,12 @@ export default async function handler(req: Request) {
   }
 
   try {
+    // Check if credentials exist
+    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+      console.error('Missing Spotify credentials')
+      return new Response('Missing Spotify credentials', { status: 500 })
+    }
+
     // Get client credentials token
     const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
@@ -19,6 +25,11 @@ export default async function handler(req: Request) {
       body: 'grant_type=client_credentials'
     })
 
+    if (!tokenResponse.ok) {
+      console.error('Token request failed:', tokenResponse.status, tokenResponse.statusText)
+      return new Response('Spotify authentication failed', { status: 500 })
+    }
+
     const tokenData = await tokenResponse.json() as { access_token: string }
     const { access_token } = tokenData
 
@@ -26,6 +37,11 @@ export default async function handler(req: Request) {
     const response = await fetch(`https://api.spotify.com/v1/audio-features/${trackId}`, {
       headers: { 'Authorization': `Bearer ${access_token}` }
     })
+
+    if (!response.ok) {
+      console.error('Audio features request failed:', response.status, response.statusText)
+      return new Response('Failed to get audio features', { status: 500 })
+    }
 
     const features = await response.json()
 
@@ -36,6 +52,14 @@ export default async function handler(req: Request) {
       }
     })
   } catch (error) {
-    return new Response('Internal server error', { status: 500 })
+    console.error('Spotify features error:', error)
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
