@@ -2,6 +2,9 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "github": {
+    "enabled": false
+  },
   "headers": [
     {
       "source": "/api/(.*)",
