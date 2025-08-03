@@ -36,7 +36,10 @@ npm run dev
 
 ## 📦 Deployment
 
-Automatically deploys to Vercel on every push to main branch.
+Deploys to Vercel only after all tests pass:
+- **Pull Requests**: Preview deployments after test validation
+- **Main Branch**: Production deployments after test validation
+- **Quality Gates**: TypeScript, ESLint, Vitest, and build verification
 
 ## 🎨 Visualization Modes
 
