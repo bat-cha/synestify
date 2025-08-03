@@ -54,9 +54,9 @@ export default async function handler(req: Request) {
 
     console.log('Token obtained successfully for audio features')
 
-    // Get audio features
-    console.log(`Fetching audio features from: https://api.spotify.com/v1/audio-features/${trackId}`)
-    const response = await fetch(`https://api.spotify.com/v1/audio-features/${trackId}`, {
+    // Get audio features using batch endpoint (non-deprecated)
+    console.log(`Fetching audio features from: https://api.spotify.com/v1/audio-features?ids=${trackId}`)
+    const response = await fetch(`https://api.spotify.com/v1/audio-features?ids=${trackId}`, {
       headers: { 'Authorization': `Bearer ${access_token}` }
     })
 
@@ -76,8 +76,24 @@ export default async function handler(req: Request) {
       })
     }
 
-    const features = await response.json()
+    const data = await response.json()
     console.log('Audio features retrieved successfully')
+    
+    // Extract first feature object from batch response
+    const features = data.audio_features && data.audio_features.length > 0 
+      ? data.audio_features[0] 
+      : null
+
+    if (!features) {
+      return new Response(JSON.stringify({ 
+        error: 'No audio features available for this track',
+        trackId: trackId,
+        timestamp: new Date().toISOString()
+      }), { 
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
 
     return new Response(JSON.stringify(features), {
       headers: {
