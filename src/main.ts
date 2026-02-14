@@ -1,367 +1,306 @@
-import './style.css'
-import { EnergyVisualizer, type AudioFeatures } from './lib/visualizer/EnergyVisualizer'
-import { SpotifyAPI } from './lib/spotify/api'
-import type { SpotifyTrack } from './lib/spotify/types'
+import './style.css';
+import { AudioEngine } from './lib/audio/AudioEngine';
+import { WaveformOcean } from './lib/visualizer/WaveformOcean';
+import { FrequencySpectrum } from './lib/visualizer/FrequencySpectrum';
+import { ParticleGalaxy } from './lib/visualizer/ParticleGalaxy';
+import { SynesthesiaMode } from './lib/visualizer/SynesthesiaMode';
+import { GeometricHarmonics } from './lib/visualizer/GeometricHarmonics';
+import { THEMES, type VisualizerMode, type ColorTheme, type Visualizer } from './lib/visualizer/types';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
+// ===== State =====
+let currentMode: VisualizerMode = 'galaxy';
+let currentTheme: ColorTheme = 'neon';
+let sensitivity = 1;
+let time = 0;
+let running = false;
+const engine = new AudioEngine();
+const visualizers: Record<VisualizerMode, Visualizer> = {
+  ocean: new WaveformOcean(),
+  spectrum: new FrequencySpectrum(),
+  galaxy: new ParticleGalaxy(),
+  synesthesia: new SynesthesiaMode(),
+  geometric: new GeometricHarmonics(),
+};
+
+// ===== DOM =====
+const app = document.querySelector<HTMLDivElement>('#app')!;
+app.innerHTML = `
+  <canvas id="main-canvas"></canvas>
+
+  <div class="welcome" id="welcome">
     <h1>Synestify</h1>
-    <p>Interactive Spotify Music Visualizer</p>
-    
-    <div class="search-container">
-      <div class="search-box">
-        <input type="text" id="search-input" placeholder="Search for a song..." />
-        <button id="search-btn">Search</button>
+    <p>Choose a source below to begin</p>
+  </div>
+
+  <div class="overlay">
+    <div class="top-bar">
+      <div class="logo">Synestify</div>
+      <div class="top-actions">
+        <button class="btn btn-icon" id="btn-fullscreen" title="Fullscreen">⛶</button>
       </div>
-      <div id="search-results" class="search-results"></div>
     </div>
-    
-    <div class="track-container">
-      <div id="track-info" class="track-info"></div>
-      <div id="audio-features" class="audio-features"></div>
-      <div class="visualization-controls">
-        <button id="visualize-btn" disabled>🎨 Visualize Track</button>
-        <button id="auto-animate-btn">🔄 Auto Animation</button>
-        <div class="speed-control">
-          <label>Animation Speed:</label>
-          <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1" />
-          <span id="speed-value">1x</span>
+
+    <div></div>
+
+    <div class="bottom-bar">
+      <div class="playback-row" id="playback-row">
+        <button class="btn btn-icon" id="btn-play-pause">⏸</button>
+        <span class="playback-time" id="time-current">0:00</span>
+        <div class="progress-bar" id="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
         </div>
+        <span class="playback-time" id="time-total">0:00</span>
       </div>
-    </div>
-    
-    <div class="visualizer-container">
-      <canvas id="visualizer" width="400" height="400"></canvas>
-    </div>
-    
-    <div class="controls">
-      <button id="demo-btn">Demo Visualization</button>
-      <div class="demo-tracks">
-        <p class="demo-info">Try these sample searches (more likely to have previews):</p>
-        <div class="demo-track-buttons">
-          <button class="demo-search-btn" data-query="dua lipa levitating">Levitating - Dua Lipa</button>
-          <button class="demo-search-btn" data-query="olivia rodrigo good 4 u">good 4 u - Olivia Rodrigo</button>
-          <button class="demo-search-btn" data-query="bad bunny titi me pregunto">Titi Me Preguntó - Bad Bunny</button>
+
+      <div class="source-row">
+        <span class="label">Source:</span>
+        <button class="btn" id="btn-mic">🎤 Mic</button>
+        <button class="btn" id="btn-file">📁 File</button>
+        <button class="btn" id="btn-demo">🎵 Demo</button>
+        <input type="file" id="file-input" accept="audio/*" />
+      </div>
+
+      <div class="mode-row" id="mode-row">
+        <button class="mode-btn" data-mode="ocean">🌊 Ocean</button>
+        <button class="mode-btn" data-mode="spectrum">📊 Spectrum</button>
+        <button class="mode-btn active" data-mode="galaxy">🌌 Galaxy</button>
+        <button class="mode-btn" data-mode="synesthesia">🎨 Synesthesia</button>
+        <button class="mode-btn" data-mode="geometric">✡ Geometry</button>
+      </div>
+
+      <div class="controls-row">
+        <div class="control-group">
+          <label>Sensitivity</label>
+          <input type="range" id="sensitivity" min="0.2" max="3" step="0.1" value="1" />
+        </div>
+        <div class="control-group">
+          <label>Theme</label>
+          <div class="theme-pills">
+            <div class="theme-pill neon active" data-theme="neon"></div>
+            <div class="theme-pill sunset" data-theme="sunset"></div>
+            <div class="theme-pill ocean" data-theme="ocean"></div>
+            <div class="theme-pill monochrome" data-theme="monochrome"></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-`
 
-const canvas = document.querySelector<HTMLCanvasElement>('#visualizer')!
-const visualizer = new EnergyVisualizer(canvas)
-const spotifyAPI = new SpotifyAPI()
+  <div class="drop-zone" id="drop-zone">
+    <h2>Drop audio file here</h2>
+    <p>MP3, WAV, OGG, FLAC</p>
+  </div>
+`;
 
-let currentFeatures: AudioFeatures | null = null
-let animationSpeed = 1
-let autoAnimateInterval: number | null = null
+const canvas = document.querySelector<HTMLCanvasElement>('#main-canvas')!;
+const ctx = canvas.getContext('2d')!;
+const welcome = document.getElementById('welcome')!;
+const playbackRow = document.getElementById('playback-row')!;
+const progressFill = document.getElementById('progress-fill')!;
+const timeCurrent = document.getElementById('time-current')!;
+const timeTotal = document.getElementById('time-total')!;
+const btnPlayPause = document.getElementById('btn-play-pause')!;
+const dropZone = document.getElementById('drop-zone')!;
+const fileInput = document.getElementById('file-input') as HTMLInputElement;
 
-const searchInput = document.querySelector<HTMLInputElement>('#search-input')!
-const searchBtn = document.querySelector<HTMLButtonElement>('#search-btn')!
-const searchResults = document.querySelector<HTMLDivElement>('#search-results')!
-const trackInfo = document.querySelector<HTMLDivElement>('#track-info')!
-const audioFeatures = document.querySelector<HTMLDivElement>('#audio-features')!
-const visualizeBtn = document.querySelector<HTMLButtonElement>('#visualize-btn')!
-const autoAnimateBtn = document.querySelector<HTMLButtonElement>('#auto-animate-btn')!
-const speedSlider = document.querySelector<HTMLInputElement>('#speed-slider')!
-const speedValue = document.querySelector<HTMLSpanElement>('#speed-value')!
+// ===== Canvas sizing =====
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
 
-async function searchTracks(query: string) {
-  if (!query.trim()) return
-  
+// ===== Source buttons =====
+const btnMic = document.getElementById('btn-mic')!;
+const btnFile = document.getElementById('btn-file')!;
+const btnDemo = document.getElementById('btn-demo')!;
+
+function clearSourceActive() {
+  btnMic.classList.remove('active');
+  btnFile.classList.remove('active');
+  btnDemo.classList.remove('active');
+  playbackRow.classList.remove('visible');
+}
+
+btnMic.addEventListener('click', async () => {
+  clearSourceActive();
+  btnMic.classList.add('active');
   try {
-    searchBtn.textContent = 'Searching...'
-    searchBtn.disabled = true
-    
-    const tracks = await spotifyAPI.searchTracks(query, 10)
-    console.log('Tracks with previews:', tracks.filter(t => t.preview_url).length, 'out of', tracks.length)
-    console.log('Sample track preview_url:', tracks[0]?.preview_url)
-    console.log('All preview URLs:', tracks.map(t => ({ name: t.name, preview_url: t.preview_url })))
-    displaySearchResults(tracks)
-  } catch (error) {
-    console.error('Search failed:', error)
-    searchResults.innerHTML = '<p class="error">Search failed. Please try again.</p>'
-  } finally {
-    searchBtn.textContent = 'Search'
-    searchBtn.disabled = false
+    await engine.startMic();
+    startVis();
+  } catch (e) {
+    console.error('Mic access denied:', e);
+    btnMic.classList.remove('active');
   }
+});
+
+btnFile.addEventListener('click', () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  await loadFile(file);
+});
+
+async function loadFile(file: File) {
+  clearSourceActive();
+  btnFile.classList.add('active');
+  const audio = await engine.startFile(file);
+  playbackRow.classList.add('visible');
+
+  audio.addEventListener('loadedmetadata', () => {
+    timeTotal.textContent = formatTime(audio.duration);
+  });
+  audio.addEventListener('timeupdate', () => {
+    timeCurrent.textContent = formatTime(audio.currentTime);
+    const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+    progressFill.style.width = pct + '%';
+  });
+  audio.addEventListener('ended', () => {
+    btnPlayPause.textContent = '▶';
+  });
+
+  btnPlayPause.textContent = '⏸';
+  startVis();
 }
 
-function displaySearchResults(tracks: SpotifyTrack[]) {
-  if (tracks.length === 0) {
-    searchResults.innerHTML = '<p>No tracks found.</p>'
-    return
-  }
-
-  searchResults.innerHTML = tracks.map(track => {
-    const imageUrl = track.album.images && track.album.images.length > 0 
-      ? track.album.images[track.album.images.length - 1]?.url || ''
-      : ''
-    
-    return `
-      <div class="track-result" data-track-id="${track.id}">
-        ${imageUrl ? `<img src="${imageUrl}" alt="${track.album.name}" class="track-image" />` : '<div class="track-image-placeholder"></div>'}
-        <div class="track-details">
-          <div class="track-name">${escapeHtml(track.name)}</div>
-          <div class="track-artist">${escapeHtml(track.artists.map(a => a.name).join(', '))}</div>
-          <div class="track-album">${escapeHtml(track.album.name)}</div>
-          ${!track.preview_url ? '<span class="no-preview">⚠️ No preview available</span>' : '<span class="preview-available">🎵 Preview available</span>'}
-        </div>
-      </div>
-    `
-  }).join('')
-
-  searchResults.querySelectorAll('.track-result').forEach((result, index) => {
-    result.addEventListener('click', () => selectTrack(tracks[index]))
-  })
-}
-
-function escapeHtml(text: string): string {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
-}
-
-async function selectTrack(track: SpotifyTrack) {
-
-  const currentImageUrl = track.album.images && track.album.images.length > 0 
-    ? track.album.images[0]?.url || track.album.images[track.album.images.length - 1]?.url || ''
-    : ''
-
-  trackInfo.innerHTML = `
-    ${currentImageUrl ? `<img src="${currentImageUrl}" alt="${track.album.name}" class="current-track-image" />` : '<div class="current-track-image-placeholder">🎵</div>'}
-    <div class="current-track-details">
-      <div class="current-track-name">${escapeHtml(track.name)}</div>
-      <div class="current-track-artist">${escapeHtml(track.artists.map(a => a.name).join(', '))}</div>
-      <div class="current-track-album">${escapeHtml(track.album.name)}</div>
-      <div class="track-duration">${formatDuration(track.duration_ms)}</div>
-    </div>
-  `
-
-  visualizeBtn.disabled = false
-  audioFeatures.innerHTML = '<div class="loading">Loading audio features...</div>'
-
-  try {
-    const features = await spotifyAPI.getAudioFeatures(track.id)
-    currentFeatures = features
-    displayAudioFeatures(features)
-  } catch (error) {
-    console.error('Failed to get audio features:', error)
-    audioFeatures.innerHTML = '<div class="error">Failed to load audio features</div>'
-  }
-}
-
-function formatDuration(ms: number): string {
-  const minutes = Math.floor(ms / 60000)
-  const seconds = Math.floor((ms % 60000) / 1000)
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
-function displayAudioFeatures(features: AudioFeatures) {
-  const featureLabels = {
-    energy: 'Energy',
-    valence: 'Positivity',
-    danceability: 'Danceability',
-    acousticness: 'Acoustic',
-    instrumentalness: 'Instrumental',
-    liveness: 'Live Performance',
-    speechiness: 'Speechiness'
-  }
-
-  const featureColors = {
-    energy: '#ff6b6b',
-    valence: '#4ecdc4',
-    danceability: '#45b7d1',
-    acousticness: '#96ceb4',
-    instrumentalness: '#feca57',
-    liveness: '#ff9ff3',
-    speechiness: '#54a0ff'
-  }
-
-  audioFeatures.innerHTML = `
-    <h3>Musical DNA</h3>
-    <div class="features-grid">
-      ${Object.entries(featureLabels).map(([key, label]) => {
-        const value = features[key as keyof AudioFeatures] as number
-        const percentage = Math.round(value * 100)
-        const color = featureColors[key as keyof typeof featureColors]
-        
-        return `
-          <div class="feature-item">
-            <div class="feature-label">${label}</div>
-            <div class="feature-bar">
-              <div class="feature-fill" style="width: ${percentage}%; background-color: ${color}"></div>
-            </div>
-            <div class="feature-value">${percentage}%</div>
-          </div>
-        `
-      }).join('')}
-      <div class="feature-item tempo">
-        <div class="feature-label">Tempo</div>
-        <div class="feature-value large">${Math.round(features.tempo)} BPM</div>
-      </div>
-      <div class="feature-item key">
-        <div class="feature-label">Key</div>
-        <div class="feature-value large">${getKeyName(features.key, features.mode)}</div>
-      </div>
-    </div>
-  `
-}
-
-function getKeyName(key: number, mode: number): string {
-  const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-  const keyName = keys[key] || '?'
-  const modeName = mode === 1 ? 'Major' : 'Minor'
-  return `${keyName} ${modeName}`
-}
-
-searchBtn.addEventListener('click', () => {
-  searchTracks(searchInput.value)
-})
-
-searchInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    searchTracks(searchInput.value)
-  }
-})
-
-visualizeBtn.addEventListener('click', () => {
-  if (currentFeatures) {
-    visualizer.render(currentFeatures)
-    visualizeBtn.textContent = '🎨 Visualizing...'
-    setTimeout(() => {
-      visualizeBtn.textContent = '🎨 Visualize Track'
-    }, 2000)
-  }
-})
-
-autoAnimateBtn.addEventListener('click', () => {
-  if (autoAnimateInterval) {
-    clearInterval(autoAnimateInterval)
-    autoAnimateInterval = null
-    autoAnimateBtn.textContent = '🔄 Auto Animation'
-    autoAnimateBtn.classList.remove('active')
+btnPlayPause.addEventListener('click', () => {
+  const audio = engine.getAudioElement();
+  if (!audio) return;
+  if (audio.paused) {
+    audio.play();
+    btnPlayPause.textContent = '⏸';
   } else {
-    startAutoAnimation()
-    autoAnimateBtn.textContent = '⏸️ Stop Animation'
-    autoAnimateBtn.classList.add('active')
+    audio.pause();
+    btnPlayPause.textContent = '▶';
   }
-})
+});
 
-speedSlider.addEventListener('input', () => {
-  animationSpeed = parseFloat(speedSlider.value)
-  speedValue.textContent = `${animationSpeed}x`
-  
-  // Update the visualizer's animation speed
-  if (visualizer.setAnimationSpeed) {
-    visualizer.setAnimationSpeed(animationSpeed)
-  }
-})
+document.getElementById('progress-bar')!.addEventListener('click', (e) => {
+  const audio = engine.getAudioElement();
+  if (!audio || !audio.duration) return;
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const ratio = (e.clientX - rect.left) / rect.width;
+  audio.currentTime = ratio * audio.duration;
+});
 
-function startAutoAnimation() {
-  if (!currentFeatures) return
-  
-  autoAnimateInterval = setInterval(() => {
-    if (currentFeatures) {
-      // Create variations of the current features for dynamic animation
-      const animatedFeatures = createAnimatedFeatures(currentFeatures)
-      visualizer.render(animatedFeatures)
-    }
-  }, 100 / animationSpeed) as unknown as number
-}
+btnDemo.addEventListener('click', async () => {
+  clearSourceActive();
+  btnDemo.classList.add('active');
+  await engine.startDemo();
+  startVis();
+});
 
-function createAnimatedFeatures(baseFeatures: AudioFeatures): AudioFeatures {
-  const time = Date.now() / 1000
-  const variation = 0.1 // 10% variation
-  
-  // Helper function to ensure values are finite and clamped
-  const clamp = (value: number, min: number, max: number): number => {
-    if (!isFinite(value)) return min
-    return Math.max(min, Math.min(max, value))
-  }
-  
-  return {
-    ...baseFeatures,
-    energy: clamp(baseFeatures.energy + Math.sin(time * 2) * variation, 0, 1),
-    valence: clamp(baseFeatures.valence + Math.cos(time * 1.5) * variation, 0, 1),
-    danceability: clamp(baseFeatures.danceability + Math.sin(time * 3) * variation * 0.5, 0, 1),
-    tempo: clamp(baseFeatures.tempo + Math.sin(time * 0.5) * 10, 60, 200),
-    acousticness: clamp(baseFeatures.acousticness || 0, 0, 1),
-    instrumentalness: clamp(baseFeatures.instrumentalness || 0, 0, 1),
-    liveness: clamp(baseFeatures.liveness || 0, 0, 1),
-    speechiness: clamp(baseFeatures.speechiness || 0, 0, 1),
-    loudness: clamp(baseFeatures.loudness || -10, -60, 0),
-    key: baseFeatures.key || 0,
-    mode: baseFeatures.mode || 1,
-    time_signature: baseFeatures.time_signature || 4
+function startVis() {
+  welcome.classList.add('hidden');
+  if (!running) {
+    running = true;
+    loop();
   }
 }
 
-const demoFeatures: AudioFeatures[] = [
-  {
-    acousticness: 0.2,
-    danceability: 0.8,
-    energy: 0.9,
-    instrumentalness: 0.1,
-    liveness: 0.3,
-    loudness: -5,
-    speechiness: 0.1,
-    valence: 0.7,
-    tempo: 128,
-    key: 4,
-    mode: 1,
-    time_signature: 4
-  },
-  {
-    acousticness: 0.8,
-    danceability: 0.3,
-    energy: 0.2,
-    instrumentalness: 0.9,
-    liveness: 0.1,
-    loudness: -15,
-    speechiness: 0.05,
-    valence: 0.3,
-    tempo: 72,
-    key: 7,
-    mode: 0,
-    time_signature: 4
-  },
-  {
-    acousticness: 0.1,
-    danceability: 0.9,
-    energy: 0.95,
-    instrumentalness: 0.0,
-    liveness: 0.8,
-    loudness: -3,
-    speechiness: 0.2,
-    valence: 0.9,
-    tempo: 140,
-    key: 2,
-    mode: 1,
-    time_signature: 4
-  }
-]
-
-let currentDemo = 0
-
-document.querySelector<HTMLButtonElement>('#demo-btn')!.addEventListener('click', () => {
-  visualizer.render(demoFeatures[currentDemo])
-  currentDemo = (currentDemo + 1) % demoFeatures.length
-  
-  const demoTypes = ['Electronic Dance', 'Acoustic Ballad', 'High Energy Rock']
-  const btn = document.querySelector<HTMLButtonElement>('#demo-btn')!
-  btn.textContent = `Demo: ${demoTypes[currentDemo]} →`
-})
-
-// Add event listeners for demo search buttons
-document.querySelectorAll('.demo-search-btn').forEach(btn => {
+// ===== Mode selector =====
+document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    const query = btn.getAttribute('data-query')!
-    searchInput.value = query
-    searchTracks(query)
-  })
-})
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = (btn as HTMLElement).dataset.mode as VisualizerMode;
+  });
+});
 
-window.addEventListener('resize', () => {
-  visualizer.resize()
-})
+// ===== Theme selector =====
+document.querySelectorAll('.theme-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.theme-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    currentTheme = (pill as HTMLElement).dataset.theme as ColorTheme;
+  });
+});
+
+// ===== Sensitivity =====
+document.getElementById('sensitivity')!.addEventListener('input', (e) => {
+  sensitivity = parseFloat((e.target as HTMLInputElement).value);
+});
+
+// ===== Fullscreen =====
+document.getElementById('btn-fullscreen')!.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+// ===== Drag & Drop =====
+let dragCounter = 0;
+
+document.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragCounter++;
+  dropZone.classList.add('visible');
+});
+
+document.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dropZone.classList.remove('visible');
+    dropZone.classList.remove('dragover');
+  }
+});
+
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('dragover');
+});
+
+document.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  dragCounter = 0;
+  dropZone.classList.remove('visible');
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer?.files[0];
+  if (file && file.type.startsWith('audio/')) {
+    await loadFile(file);
+  }
+});
+
+// ===== Render loop =====
+function loop() {
+  if (!running) return;
+  requestAnimationFrame(loop);
+
+  const data = engine.getData();
+
+  // Apply sensitivity
+  const scaled = {
+    ...data,
+    bass: Math.min(1, data.bass * sensitivity),
+    mid: Math.min(1, data.mid * sensitivity),
+    treble: Math.min(1, data.treble * sensitivity),
+    energy: Math.min(1, data.energy * sensitivity),
+    peak: Math.min(1, data.peak * sensitivity),
+  };
+
+  time += 0.016;
+
+  const theme = THEMES[currentTheme];
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  visualizers[currentMode].draw(ctx, w, h, scaled, theme, time);
+}
+
+// ===== Helpers =====
+function formatTime(s: number): string {
+  if (!isFinite(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
