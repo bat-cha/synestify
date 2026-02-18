@@ -25,6 +25,7 @@ export default [
       ...tseslint.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': 'error',
       '@typescript-eslint/no-explicit-any': 'warn',
+      'no-undef': 'off', // TypeScript handles this via tsc --noEmit
     },
   },
   {

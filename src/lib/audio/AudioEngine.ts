@@ -200,7 +200,7 @@ export class AudioEngine {
       clearInterval(this.demoInterval);
       this.demoInterval = null;
     }
-    this.demoOscillators.forEach(o => { try { o.stop(); o.disconnect(); } catch {} });
+    this.demoOscillators.forEach(o => { try { o.stop(); o.disconnect(); } catch { /* cleanup */ } });
     this.demoOscillators = [];
     this.demoGains.forEach(g => g.disconnect());
     this.demoGains = [];
@@ -219,11 +219,11 @@ export class AudioEngine {
     }
 
     if (this.source) {
-      try { this.source.disconnect(); } catch {}
+      try { this.source.disconnect(); } catch { /* cleanup */ }
       this.source = null;
     }
     if (this.gainNode) {
-      try { this.gainNode.disconnect(); } catch {}
+      try { this.gainNode.disconnect(); } catch { /* cleanup */ }
       this.gainNode = null;
     }
   }
