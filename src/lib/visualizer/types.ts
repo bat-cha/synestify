@@ -1,4 +1,5 @@
-import type { AudioData } from '../audio/AudioEngine';
+import type { AudioData, TrackInfo } from '../audio/AudioEngine';
+export type { AudioData, TrackInfo };
 
 export type VisualizerMode = 'ocean' | 'spectrum' | 'galaxy' | 'synesthesia' | 'geometric';
 
