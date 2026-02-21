@@ -129,7 +129,7 @@ export class NeuralNetwork implements Visualizer3D {
     }
   }
 
-  update(data: AudioData, time: number, _delta: number): void {
+  update(data: AudioData, time: number): void {
     const bass = data.bass || 0;
     const energy = data.energy || 0;
     const isBeat = 'isBeat' in data && !!(data as { isBeat?: boolean }).isBeat;

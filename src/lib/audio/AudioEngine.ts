@@ -193,7 +193,7 @@ export class AudioEngine {
     this.gainNode = masterGain;
 
     const freqs = [110, 220, 330, 440, 550, 880];
-    const types: OscillatorType[] = ['sine', 'triangle', 'sawtooth', 'sine', 'sine', 'sine'];
+    const types: globalThis.OscillatorType[] = ['sine', 'triangle', 'sawtooth', 'sine', 'sine', 'sine'];
 
     freqs.forEach((freq, i) => {
       const osc = ctx.createOscillator();

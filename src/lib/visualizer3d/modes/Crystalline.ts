@@ -150,7 +150,7 @@ export class Crystalline implements Visualizer3D {
     }
   }
 
-  update(data: AudioData, time: number, _delta: number): void {
+  update(data: AudioData, time: number): void {
     const bass = data.bass || 0;
     const mid = data.mid || 0;
     const treble = data.treble || 0;
