@@ -65,6 +65,9 @@ const visualizers: Record<VisualizerMode, Visualizer> = {
 let mediaRecorder: MediaRecorder | null = null;
 let recordedChunks: Blob[] = [];
 
+// Helper to avoid TS narrowing issues in template literals
+const activeIf = (a: string, b: string) => a === b ? ' active' : '';
+
 // ===== DOM Setup =====
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
@@ -140,19 +143,19 @@ app.innerHTML = `
     <div class="settings-group">
       <span class="settings-label">Quality</span>
       <div class="quality-buttons">
-        <button class="quality-btn${quality === 'low' ? ' active' : ''}" data-quality="low">Low</button>
-        <button class="quality-btn${quality === 'medium' ? ' active' : ''}" data-quality="medium">Medium</button>
-        <button class="quality-btn${quality === 'high' ? ' active' : ''}" data-quality="high">High</button>
+        <button class="quality-btn${activeIf(quality, 'low')}" data-quality="low">Low</button>
+        <button class="quality-btn${activeIf(quality, 'medium')}" data-quality="medium">Medium</button>
+        <button class="quality-btn${activeIf(quality, 'high')}" data-quality="high">High</button>
       </div>
     </div>
 
     <div class="settings-group">
       <span class="settings-label">Theme</span>
       <div class="theme-pills">
-        <div class="theme-pill neon${currentTheme === 'neon' ? ' active' : ''}" data-theme="neon"></div>
-        <div class="theme-pill sunset${currentTheme === 'sunset' ? ' active' : ''}" data-theme="sunset"></div>
-        <div class="theme-pill ocean${currentTheme === 'ocean' ? ' active' : ''}" data-theme="ocean"></div>
-        <div class="theme-pill monochrome${currentTheme === 'monochrome' ? ' active' : ''}" data-theme="monochrome"></div>
+        <div class="theme-pill neon${activeIf(currentTheme, 'neon')}" data-theme="neon"></div>
+        <div class="theme-pill sunset${activeIf(currentTheme, 'sunset')}" data-theme="sunset"></div>
+        <div class="theme-pill ocean${activeIf(currentTheme, 'ocean')}" data-theme="ocean"></div>
+        <div class="theme-pill monochrome${activeIf(currentTheme, 'monochrome')}" data-theme="monochrome"></div>
       </div>
     </div>
 
@@ -175,11 +178,11 @@ app.innerHTML = `
     <div class="settings-group">
       <span class="settings-label">Classic Mode</span>
       <div class="quality-buttons">
-        <button class="quality-btn${classicSubMode === 'ocean' ? ' active' : ''}" data-classic="ocean">Ocean</button>
-        <button class="quality-btn${classicSubMode === 'spectrum' ? ' active' : ''}" data-classic="spectrum">Spectrum</button>
-        <button class="quality-btn${classicSubMode === 'galaxy' ? ' active' : ''}" data-classic="galaxy">Galaxy</button>
-        <button class="quality-btn${classicSubMode === 'synesthesia' ? ' active' : ''}" data-classic="synesthesia">Synth</button>
-        <button class="quality-btn${classicSubMode === 'geometric' ? ' active' : ''}" data-classic="geometric">Geo</button>
+        <button class="quality-btn${activeIf(classicSubMode, 'ocean')}" data-classic="ocean">Ocean</button>
+        <button class="quality-btn${activeIf(classicSubMode, 'spectrum')}" data-classic="spectrum">Spectrum</button>
+        <button class="quality-btn${activeIf(classicSubMode, 'galaxy')}" data-classic="galaxy">Galaxy</button>
+        <button class="quality-btn${activeIf(classicSubMode, 'synesthesia')}" data-classic="synesthesia">Synth</button>
+        <button class="quality-btn${activeIf(classicSubMode, 'geometric')}" data-classic="geometric">Geo</button>
       </div>
     </div>
   </div>
