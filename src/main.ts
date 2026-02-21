@@ -9,7 +9,8 @@ import { ParticleGalaxy } from './lib/visualizer/ParticleGalaxy';
 import { SynesthesiaMode } from './lib/visualizer/SynesthesiaMode';
 import { GeometricHarmonics } from './lib/visualizer/GeometricHarmonics';
 // 3D visualizers
-import { SceneManager, type QualityLevel } from './lib/visualizer3d/SceneManager';
+import type { QualityLevel } from './lib/visualizer3d/types';
+import { SceneManager } from './lib/visualizer3d/SceneManager';
 import { Nebula } from './lib/visualizer3d/modes/Nebula';
 import { Terrain } from './lib/visualizer3d/modes/Terrain';
 import { Crystalline } from './lib/visualizer3d/modes/Crystalline';
